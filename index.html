@@ -1397,6 +1397,7 @@ function startFakeCall(name, status, icon) {
   // ringtone
   try {
     var ac = new (window.AudioContext || window.webkitAudioContext)();
+    _callState.ringAc = ac; // store so we can stop it on accept
     // compressor to maximise perceived loudness
     var comp = ac.createDynamicsCompressor();
     comp.threshold.value = -6;
@@ -1440,6 +1441,11 @@ function schedFakeCall() {
 
 function acceptCall() {
   _callState.phase = 'connected';
+  // stop ringtone immediately
+  if (_callState.ringAc) {
+    try { _callState.ringAc.close(); } catch(e) {}
+    _callState.ringAc = null;
+  }
   // swap UI
   document.getElementById('cs-ringing').style.display = 'none';
   document.getElementById('cs-connected').style.display = 'flex';
@@ -1698,6 +1704,10 @@ function _sendReply(idx) {
 function declineCall() {
   clearInterval(APP.callInterval);
   clearInterval(APP._csClockInt);
+  if (_callState.ringAc) {
+    try { _callState.ringAc.close(); } catch(e) {}
+    _callState.ringAc = null;
+  }
   if (window.speechSynthesis) window.speechSynthesis.cancel();
   document.getElementById('callScreen').classList.remove('show');
   document.body.style.overflow = '';
