@@ -16,9 +16,7 @@
     {
       "source": "/(.*)",
       "headers": [
-        { "key": "X-Content-Type-Options", "value": "nosniff" },
-        { "key": "Permissions-Policy", "value": "microphone=*, geolocation=*" },
-        { "key": "Cross-Origin-Opener-Policy", "value": "same-origin-allow-popups" }
+        { "key": "Permissions-Policy", "value": "microphone=*, geolocation=*" }
       ]
     }
   ]
