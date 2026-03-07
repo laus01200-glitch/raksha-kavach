@@ -1,4 +1,4 @@
-const CACHE = 'raksha-kavach-v4';
+const CACHE = 'raksha-kavach-v5';
 
 const ASSETS = [
   '/',
