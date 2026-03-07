@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Raksha Kavach — Women Safety Shield</title>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" onerror="document.body.insertAdjacentHTML('afterbegin','<div style=background:red;color:white;padding:20px;position:fixed;top:0;z-index:99999>ERROR: Supabase failed to load. Check internet.</div>')"></script>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#E74C3C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -820,16 +820,22 @@ async function doSignup() {
   if (pass.length < 6) { errEl.textContent = '⚠️ Password must be at least 6 characters'; return; }
   if (pass !== pass2)  { errEl.textContent = '⚠️ Passwords do not match'; return; }
   errEl.textContent = '⏳ Creating account...';
-  const { data, error } = await supa.auth.signUp({
-    email, password: pass,
-    options: { data: { full_name: name } }
-  });
-  if (error) { errEl.textContent = '⚠️ ' + error.message; return; }
-  if (data.user) {
-    await supa.from('profiles').upsert({ id: data.user.id, full_name: name });
-    loginUser(data.user, name);
-  } else {
-    errEl.textContent = '✅ Check your email to confirm your account, then sign in.';
+  try {
+    const { data, error } = await supa.auth.signUp({
+      email, password: pass,
+      options: { data: { full_name: name } }
+    });
+    console.log('Signup result:', JSON.stringify({data: !!data, error: error?.message}));
+    if (error) { errEl.textContent = '⚠️ ' + error.message; return; }
+    if (data.user) {
+      await supa.from('profiles').upsert({ id: data.user.id, full_name: name });
+      loginUser(data.user, name);
+    } else {
+      errEl.textContent = '✅ Account created! Please sign in.';
+    }
+  } catch(e) {
+    console.error('Signup catch:', e);
+    errEl.textContent = '⚠️ Error: ' + (e.message || 'Check internet connection.');
   }
 }
 
@@ -840,10 +846,18 @@ async function doLogin() {
   if (!email) { errEl.textContent = '⚠️ Please enter your email'; return; }
   if (!pass)  { errEl.textContent = '⚠️ Please enter your password'; return; }
   errEl.textContent = '⏳ Signing in...';
-  const { data, error } = await supa.auth.signInWithPassword({ email, password: pass });
-  if (error) { errEl.textContent = '⚠️ ' + error.message; return; }
-  const name = data.user.user_metadata?.full_name || email.split('@')[0];
-  loginUser(data.user, name);
+  errEl.style.color = '#fff';
+  try {
+    const { data, error } = await supa.auth.signInWithPassword({ email, password: pass });
+    console.log('Login result:', JSON.stringify({data: !!data, error: error?.message}));
+    if (error) { errEl.textContent = '⚠️ ' + error.message; return; }
+    if (!data || !data.user) { errEl.textContent = '⚠️ No user returned — try Create Account'; return; }
+    const name = data.user.user_metadata?.full_name || email.split('@')[0];
+    loginUser(data.user, name);
+  } catch(e) {
+    console.error('Login catch:', e);
+    errEl.textContent = '⚠️ Error: ' + (e.message || 'Unknown error. Check internet connection.');
+  }
 }
 
 function loginUser(user, name) {
@@ -1952,17 +1966,19 @@ setTimeout(function() { toast('🛡️ Raksha Kavach', 'Safety shield active. St
 function dbSave(endpoint, data) { /* replaced by Supabase */ }
 
 // ── PWA SERVICE WORKER ────────────────────────────────
-// Only register SW when deployed to real HTTPS (Netlify etc)
-// Disable on localhost/Live Server to prevent navigation hijacking
-if ('serviceWorker' in navigator && location.protocol === 'https:') {
-  window.addEventListener('load', function() {
-    navigator.serviceWorker.register('/sw.js').catch(function() {});
-  });
-} else if ('serviceWorker' in navigator) {
-  // On localhost — unregister any existing SW so it doesn't intercept
+if ('serviceWorker' in navigator) {
+  // Unregister ALL old service workers first to clear stale cache
   navigator.serviceWorker.getRegistrations().then(function(regs) {
     regs.forEach(function(reg) { reg.unregister(); });
   });
+  // Re-register fresh SW on HTTPS after a delay
+  if (location.protocol === 'https:') {
+    window.addEventListener('load', function() {
+      setTimeout(function() {
+        navigator.serviceWorker.register('/sw.js').catch(function() {});
+      }, 2000);
+    });
+  }
 }
 
 // ── PWA INSTALL PROMPT ────────────────────────────────
