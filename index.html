@@ -1516,22 +1516,25 @@ function _listenForReply() {
   var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SpeechRecognition) { _showFallbackButtons(); return; }
 
-  // STOP TTS before mic — they conflict
-  if (window.speechSynthesis) window.speechSynthesis.cancel();
-
   var btn = document.getElementById('cs-mic-btn');
   if (btn) { btn.style.background = 'rgba(39,174,96,.9)'; btn.textContent = '👂'; }
 
-  // wait 500ms after stopping TTS before starting mic
-  setTimeout(function() {
+  // cancel TTS and wait until it's fully stopped before starting mic
+  if (window.speechSynthesis) window.speechSynthesis.cancel();
+
+  function startRec() {
+    // double-check TTS is truly stopped
+    if (window.speechSynthesis && window.speechSynthesis.speaking) {
+      setTimeout(startRec, 200);
+      return;
+    }
+
     var rec = new SpeechRecognition();
     rec.interimResults = false;
     rec.maxAlternatives = 3;
 
     rec.onresult = function(e) {
       var heard = e.results[0][0].transcript.toLowerCase().trim();
-
-      // match to closest reply
       var script = _callState.script;
       var bestIdx = 0;
       var bestScore = -1;
@@ -1559,12 +1562,14 @@ function _listenForReply() {
 
     rec.onerror = function(ev) {
       if (btn) { btn.style.background = 'rgba(231,76,60,.8)'; btn.textContent = '🎤'; }
-      var container = document.getElementById('cs-reply-btns');
-      if (container) {
-        var retry = document.createElement('div');
-        retry.style.cssText = 'font-size:.7rem;color:rgba(255,150,100,.8);text-align:center;padding:6px;';
-        retry.textContent = 'Error: ' + ev.error + ' — tap 🎤 to retry';
-        container.appendChild(retry);
+      if (ev.error !== 'no-speech') {
+        var container = document.getElementById('cs-reply-btns');
+        if (container) {
+          var retry = document.createElement('div');
+          retry.style.cssText = 'font-size:.7rem;color:rgba(255,150,100,.8);text-align:center;padding:4px;';
+          retry.textContent = 'Error: ' + ev.error + ' — tap 🎤 to retry';
+          container.appendChild(retry);
+        }
       }
     };
 
@@ -1573,16 +1578,14 @@ function _listenForReply() {
     };
 
     try { rec.start(); } catch(ex) {
-      var container = document.getElementById('cs-reply-btns');
-      if (container) {
-        var err = document.createElement('div');
-        err.style.cssText = 'font-size:.7rem;color:rgba(255,150,100,.8);text-align:center;padding:6px;';
-        err.textContent = 'Mic error: ' + ex.message;
-        container.appendChild(err);
-      }
+      if (btn) { btn.style.background = 'rgba(231,76,60,.8)'; btn.textContent = '🎤'; }
     }
-  }, 500);
+  }
+
+  // give TTS 800ms to fully stop before starting mic
+  setTimeout(startRec, 800);
 }
+
 
 function _showFallbackButtons() {
   if (_callState.replyUsed) return;
