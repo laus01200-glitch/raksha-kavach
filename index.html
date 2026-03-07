@@ -1478,14 +1478,107 @@ function _addBubble(text, who) {
 
 function _showReplyButtons() {
   var script = _callState.script;
-  if (_callState.replyUsed) return; // only one reply per call
+  if (_callState.replyUsed) return;
   var container = document.getElementById('cs-reply-btns');
   container.classList.add('show');
   container.innerHTML = '';
-  // show a small prompt label
+
+  // show mic prompt
   var lbl = document.createElement('div');
-  lbl.style.cssText = 'font-size:.7rem;color:rgba(255,255,255,.3);letter-spacing:.08em;text-transform:uppercase;padding:0 4px 4px;';
-  lbl.textContent = 'Say something…';
+  lbl.style.cssText = 'font-size:.75rem;color:rgba(255,255,255,.5);text-align:center;padding:4px 0 8px;';
+  lbl.textContent = '🎤 Speak your reply…';
+  container.appendChild(lbl);
+
+  // show reply options as hints (grayed out, not buttons)
+  script.replies.forEach(function(r, i) {
+    var hint = document.createElement('div');
+    hint.style.cssText = 'font-size:.72rem;color:rgba(255,255,255,.25);padding:3px 8px;border-left:2px solid rgba(255,255,255,.1);margin:3px 0;';
+    hint.textContent = r.you;
+    container.appendChild(hint);
+  });
+
+  // fallback tap-to-speak button
+  var tapBtn = document.createElement('button');
+  tapBtn.id = 'cs-mic-btn';
+  tapBtn.style.cssText = 'margin-top:10px;background:rgba(231,76,60,.8);border:none;border-radius:50%;width:48px;height:48px;font-size:1.4rem;cursor:pointer;animation:cg 1.2s ease infinite;display:block;margin:10px auto 0;';
+  tapBtn.textContent = '🎤';
+  tapBtn.onclick = _listenForReply;
+  container.appendChild(tapBtn);
+
+  // auto-start listening after short delay
+  setTimeout(_listenForReply, 600);
+}
+
+function _listenForReply() {
+  if (_callState.replyUsed) return;
+  var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    // fallback to buttons if no speech recognition
+    _showFallbackButtons();
+    return;
+  }
+
+  var btn = document.getElementById('cs-mic-btn');
+  if (btn) { btn.style.background = 'rgba(39,174,96,.9)'; btn.textContent = '👂'; }
+
+  var rec = new SpeechRecognition();
+  rec.lang = 'en-IN';
+  rec.interimResults = false;
+  rec.maxAlternatives = 5;
+
+  rec.onresult = function(e) {
+    var heard = '';
+    for (var a = 0; a < e.results[0].length; a++) {
+      heard += ' ' + e.results[0][a].transcript;
+    }
+    heard = heard.toLowerCase().trim();
+
+    // match heard speech to closest reply
+    var script = _callState.script;
+    var bestIdx = 0;
+    var bestScore = -1;
+    script.replies.forEach(function(r, i) {
+      var words = r.you.toLowerCase().split(/\s+/);
+      var score = words.filter(function(w) {
+        return w.length > 3 && heard.indexOf(w) > -1;
+      }).length;
+      if (score > bestScore) { bestScore = score; bestIdx = i; }
+    });
+
+    // show what was heard
+    var container = document.getElementById('cs-reply-btns');
+    if (container) {
+      var heardDiv = document.createElement('div');
+      heardDiv.style.cssText = 'font-size:.72rem;color:rgba(255,255,255,.4);text-align:center;padding:4px;font-style:italic;';
+      heardDiv.textContent = '"' + heard + '"';
+      container.appendChild(heardDiv);
+    }
+
+    setTimeout(function() { _sendReply(bestIdx); }, 400);
+  };
+
+  rec.onerror = function() {
+    // on error, retry once or fall back to buttons
+    if (btn) { btn.style.background = 'rgba(231,76,60,.8)'; btn.textContent = '🎤'; }
+    _showFallbackButtons();
+  };
+
+  rec.onend = function() {
+    if (btn) { btn.style.background = 'rgba(231,76,60,.8)'; btn.textContent = '🎤'; }
+  };
+
+  try { rec.start(); } catch(e) { _showFallbackButtons(); }
+}
+
+function _showFallbackButtons() {
+  if (_callState.replyUsed) return;
+  var script = _callState.script;
+  var container = document.getElementById('cs-reply-btns');
+  if (!container) return;
+  container.innerHTML = '';
+  var lbl = document.createElement('div');
+  lbl.style.cssText = 'font-size:.7rem;color:rgba(255,255,255,.3);padding:0 4px 6px;';
+  lbl.textContent = 'Tap a reply:';
   container.appendChild(lbl);
   script.replies.forEach(function(r, i) {
     var btn = document.createElement('button');
