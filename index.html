@@ -1441,7 +1441,9 @@ function acceptCall() {
   // show opener bubble after 1.2 s, then reply options
   setTimeout(function() {
     _addBubble(_callState.script.opener, 'them');
-    setTimeout(_showReplyButtons, 900);
+    _speak(_callState.script.opener, 0.9, 0.9, function() {
+      setTimeout(_showReplyButtons, 400);
+    });
   }, 1200);
 }
 
@@ -1476,6 +1478,22 @@ function _showReplyButtons() {
   });
 }
 
+function _speak(text, pitch, rate, onEnd) {
+  if (!window.speechSynthesis) { if (onEnd) onEnd(); return; }
+  window.speechSynthesis.cancel();
+  var u = new SpeechSynthesisUtterance(text);
+  u.pitch = pitch || 1;
+  u.rate = rate || 0.95;
+  u.volume = 1;
+  // pick a voice
+  var voices = window.speechSynthesis.getVoices();
+  var pref = voices.find(function(v) { return v.lang.startsWith('en') && v.name.toLowerCase().indexOf('female') > -1; })
+          || voices.find(function(v) { return v.lang.startsWith('en'); });
+  if (pref) u.voice = pref;
+  if (onEnd) u.onend = onEnd;
+  window.speechSynthesis.speak(u);
+}
+
 function _sendReply(idx) {
   var r = _callState.script.replies[idx];
   _callState.replyUsed = true;
@@ -1485,29 +1503,35 @@ function _sendReply(idx) {
   container.innerHTML = '';
   container.classList.remove('show');
 
-  // show user's chosen line
+  // speak + show user's line
   _addBubble(r.you, 'caller');
-
-  // caller responds after short pause
-  setTimeout(function() {
-    _addBubble(r.them, 'them');
-    // after response, show a natural wrap-up exchange
+  _speak(r.you, 1.1, 1.0, function() {
+    // caller responds after short pause
     setTimeout(function() {
-      _addBubble(r.you.indexOf('soon') > -1 || r.you.indexOf('come') > -1
-        ? 'See you soon!' : 'Okay, talk later!', 'caller');
-      setTimeout(function() {
-        _addBubble('Take care! Bye 👋', 'them');
-        // show end-call hint
+      _addBubble(r.them, 'them');
+      _speak(r.them, 0.9, 0.9, function() {
+        // wrap-up exchange
         setTimeout(function() {
-          var hint = document.createElement('div');
-          hint.style.cssText = 'text-align:center;font-size:.72rem;color:rgba(255,255,255,.25);padding:8px 0 4px;';
-          hint.textContent = '— Call ending —';
-          document.getElementById('cs-replies').appendChild(hint);
-          document.getElementById('cs-replies').scrollTop = 9999;
-        }, 600);
-      }, 900);
-    }, 1400);
-  }, 700);
+          var bye1 = r.you.indexOf('soon') > -1 || r.you.indexOf('come') > -1 ? 'See you soon!' : 'Okay, talk later!';
+          _addBubble(bye1, 'caller');
+          _speak(bye1, 1.1, 1.0, function() {
+            setTimeout(function() {
+              _addBubble('Take care! Bye 👋', 'them');
+              _speak('Take care! Bye!', 0.9, 0.9, function() {
+                setTimeout(function() {
+                  var hint = document.createElement('div');
+                  hint.style.cssText = 'text-align:center;font-size:.72rem;color:rgba(255,255,255,.25);padding:8px 0 4px;';
+                  hint.textContent = '— Call ending —';
+                  document.getElementById('cs-replies').appendChild(hint);
+                  document.getElementById('cs-replies').scrollTop = 9999;
+                }, 400);
+              });
+            }, 600);
+          });
+        }, 500);
+      });
+    }, 400);
+  });
 }
 
 function declineCall() {
