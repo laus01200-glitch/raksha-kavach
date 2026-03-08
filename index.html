@@ -1171,27 +1171,36 @@ function alertContacts() {
     toast('⚠️ No Contacts', 'Add emergency contacts for alerts', 'w');
     return;
   }
-  var loc = APP.location
-    ? 'https://maps.google.com/?q=' + APP.location.lat + ',' + APP.location.lng
-    : 'location unavailable';
-  var msgText = 'EMERGENCY! I need help immediately! My location: ' + loc;
-  var msg = encodeURIComponent(msgText);
-
-  // auto-copy message to clipboard immediately
-  if (navigator.clipboard) {
-    navigator.clipboard.writeText(msgText).catch(function() {});
-  }
 
   var card = document.getElementById('alertLinksCard');
   var linksDiv = document.getElementById('alertLinks');
   if (card) card.style.display = 'block';
+
+  // helper to get fresh message using latest APP.location
+  function getFreshText() {
+    var freshLoc = APP.location
+      ? 'https://maps.google.com/?q=' + APP.location.lat + ',' + APP.location.lng
+      : 'location unavailable';
+    return 'EMERGENCY! I need help immediately! My location: ' + freshLoc;
+  }
+
   if (linksDiv) {
     linksDiv.innerHTML =
       '<div style="background:rgba(37,211,102,.15);border:1px solid rgba(37,211,102,.4);border-radius:8px;padding:10px 12px;font-size:.82rem;color:#eee;margin-bottom:10px;word-break:break-all;">' +
-        '<div style="font-size:.7rem;color:rgba(255,255,255,.4);margin-bottom:4px;">✅ Message copied to clipboard:</div>' +
-        '<span id="alertMsgBox">' + msgText + '</span>' +
+        '<div style="font-size:.7rem;color:rgba(255,255,255,.4);margin-bottom:4px;">✅ Message (updates live with location):</div>' +
+        '<span id="alertMsgBox">' + getFreshText() + '</span>' +
       '</div>' +
       '<div style="font-size:.78rem;color:rgba(255,255,255,.45);margin-bottom:10px;">Click a contact below → WhatsApp opens → press <kbd style="background:rgba(255,255,255,.1);padding:1px 5px;border-radius:3px;">Ctrl+V</kbd> to paste and send</div>';
+
+    // keep updating the message box as location refreshes
+    if (APP._alertMsgInterval) clearInterval(APP._alertMsgInterval);
+    APP._alertMsgInterval = setInterval(function() {
+      var box = document.getElementById('alertMsgBox');
+      if (box && APP.location) {
+        box.textContent = getFreshText();
+        clearInterval(APP._alertMsgInterval);
+      }
+    }, 500);
 
     APP.contacts.forEach(function(c) {
       var phone = c.phone.replace(/[\s\-\(\)]/g, '');
@@ -1210,10 +1219,7 @@ function alertContacts() {
       // build URL fresh at click time so location is always current
       btn.addEventListener('click', function(e) {
         e.preventDefault();
-        var freshLoc = APP.location
-          ? 'https://maps.google.com/?q=' + APP.location.lat + ',' + APP.location.lng
-          : 'location unavailable';
-        var freshText = 'EMERGENCY! I need help immediately! My location: ' + freshLoc;
+        var freshText = getFreshText();
         var freshMsg = encodeURIComponent(freshText);
         var isMobile = /Android|iPhone|iPad/i.test(navigator.userAgent);
         var freshUrl = isMobile
@@ -1221,7 +1227,6 @@ function alertContacts() {
           : 'https://web.whatsapp.com/send?phone=' + phone + '&text=' + freshMsg;
         if (navigator.clipboard) navigator.clipboard.writeText(freshText).catch(function() {});
         window.open(freshUrl, '_blank');
-        // also update the displayed message box
         var box = document.getElementById('alertMsgBox');
         if (box) box.textContent = freshText;
       });
