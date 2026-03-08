@@ -936,31 +936,48 @@ async function initAppForUser() {
   renderJournalStats();
   goTo('sos');
 
-  // start watching location immediately in background so it's ready when SOS triggers
-  if (navigator.geolocation) {
-    var _locOpts = { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 };
-    var _onLocUpdate = function(pos) {
-      APP.location = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-      var banner = document.getElementById('locPermBanner');
-      if (banner) banner.style.display = 'none';
-      var el = document.getElementById('locDisp');
-      if (el) el.innerHTML = '📍 ' + pos.coords.latitude.toFixed(5) + ', ' + pos.coords.longitude.toFixed(5) +
-        '<br><a href="https://maps.google.com/?q=' + pos.coords.latitude + ',' + pos.coords.longitude +
-        '" target="_blank" style="color:var(--teal);font-size:.8rem">🗺 Open in Maps</a>';
-      var btn = document.getElementById('locBtn');
-      if (btn) btn.textContent = '📡 Refresh Location';
-    };
-    var _onLocErr = function() {
-      var banner = document.getElementById('locPermBanner');
-      if (banner) banner.style.display = 'block';
-      var el = document.getElementById('locDisp');
-      if (el) el.textContent = 'Location not available';
-    };
-    // get immediately
-    navigator.geolocation.getCurrentPosition(_onLocUpdate, _onLocErr, _locOpts);
-    // then keep watching so it stays fresh
+  // check location permission state first
+  var _locOpts = { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 };
+  var _onLocUpdate = function(pos) {
+    APP.location = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+    var banner = document.getElementById('locPermBanner');
+    if (banner) banner.style.display = 'none';
+    var el = document.getElementById('locDisp');
+    if (el) el.innerHTML = '✅ 📍 ' + pos.coords.latitude.toFixed(5) + ', ' + pos.coords.longitude.toFixed(5) +
+      '<br><a href="https://maps.google.com/?q=' + pos.coords.latitude + ',' + pos.coords.longitude +
+      '" target="_blank" style="color:var(--teal);font-size:.8rem">🗺 Open in Maps</a>';
+    var btn = document.getElementById('locBtn');
+    if (btn) btn.textContent = '📡 Refresh Location';
     if (!APP._watchId) {
-      APP._watchId = navigator.geolocation.watchPosition(_onLocUpdate, _onLocErr, _locOpts);
+      APP._watchId = navigator.geolocation.watchPosition(_onLocUpdate, function(){}, _locOpts);
+    }
+  };
+  var _onLocErr = function() {
+    var banner = document.getElementById('locPermBanner');
+    if (banner) banner.style.display = 'block';
+    var el = document.getElementById('locDisp');
+    if (el) el.textContent = '⚠️ Location permission needed';
+  };
+
+  if (navigator.geolocation) {
+    // check if permission already granted
+    if (navigator.permissions) {
+      navigator.permissions.query({ name: 'geolocation' }).then(function(result) {
+        if (result.state === 'granted') {
+          // already allowed — fetch silently
+          navigator.geolocation.getCurrentPosition(_onLocUpdate, _onLocErr, _locOpts);
+          APP._watchId = navigator.geolocation.watchPosition(_onLocUpdate, function(){}, _locOpts);
+        } else {
+          // not granted yet — show banner, wait for user to click button
+          var banner = document.getElementById('locPermBanner');
+          if (banner) banner.style.display = 'block';
+          var el = document.getElementById('locDisp');
+          if (el) el.textContent = '⚠️ Tap the button below to enable location';
+        }
+      });
+    } else {
+      // fallback — just try
+      navigator.geolocation.getCurrentPosition(_onLocUpdate, _onLocErr, _locOpts);
     }
   }
 }
