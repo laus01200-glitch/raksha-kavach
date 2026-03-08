@@ -425,7 +425,7 @@ label{font-size:.83rem;color:rgba(255,255,255,.7);margin-bottom:3px;display:bloc
 <div id="sov"></div>
 <div id="tcbox"></div>
 
-<nav>
+<nav id="mainNav">
   <div class="logo">🛡️ Raksha <span>Kavach</span></div>
   <ul>
     <li><a href="#" onclick="goTo('sos');return false" class="active" id="nav-sos">🆘 SOS</a></li>
@@ -1551,6 +1551,8 @@ function startFakeCall(name, status, icon) {
 
   document.getElementById('callScreen').classList.add('show');
   document.body.style.overflow = 'hidden';
+  var nav = document.getElementById('mainNav');
+  if (nav) nav.style.display = 'none';
 
   // clock ticker
   clearInterval(APP._csClockInt);
@@ -1618,6 +1620,22 @@ function acceptCall() {
   }
   _callState.ringAc = null;
   _callState.ringGains = [];
+
+  // unlock TTS on mobile with a silent utterance (requires user gesture)
+  if (window.speechSynthesis) {
+    var unlock = new SpeechSynthesisUtterance('');
+    unlock.volume = 0;
+    window.speechSynthesis.speak(unlock);
+  }
+  // pre-request mic permission now while we have a user gesture
+  if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+    navigator.mediaDevices.getUserMedia({ audio: true })
+      .then(function(stream) {
+        // got permission — stop stream immediately, just needed the grant
+        stream.getTracks().forEach(function(t) { t.stop(); });
+      })
+      .catch(function() {});
+  }
   // swap UI
   document.getElementById('cs-ringing').style.display = 'none';
   document.getElementById('cs-connected').style.display = 'flex';
@@ -1636,13 +1654,13 @@ function acceptCall() {
     document.getElementById('ctim').textContent = m + ':' + s;
   }, 1000);
 
-  // show opener bubble after 1.2 s, then reply options
+  // show opener bubble after 1.5s, then reply options
   setTimeout(function() {
     _addBubble(_callState.script.opener, 'them');
     _speak(_callState.script.opener, 0.9, 0.9, function() {
       setTimeout(_showReplyButtons, 400);
     });
-  }, 1200);
+  }, 1500);
 }
 
 function _addBubble(text, who) {
@@ -1890,6 +1908,8 @@ function declineCall() {
   if (window.speechSynthesis) window.speechSynthesis.cancel();
   document.getElementById('callScreen').classList.remove('show');
   document.body.style.overflow = '';
+  var nav = document.getElementById('mainNav');
+  if (nav) nav.style.display = '';
   _callState.phase = 'idle';
   // restart secret word listener after call ends
   setTimeout(function() { if (APP.secretWord) startListening(); }, 1000);
