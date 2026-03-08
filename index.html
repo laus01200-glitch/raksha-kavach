@@ -1114,31 +1114,51 @@ function alertContacts() {
   var msgText = 'EMERGENCY! I need help immediately! My location: ' + loc;
   var msg = encodeURIComponent(msgText);
 
-  // build clickable WhatsApp links
+  // auto-copy message to clipboard immediately
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(msgText).catch(function() {});
+  }
+
   var card = document.getElementById('alertLinksCard');
   var linksDiv = document.getElementById('alertLinks');
   if (card) card.style.display = 'block';
   if (linksDiv) {
-    linksDiv.innerHTML = '<p style="font-size:.8rem;color:rgba(255,255,255,.5);margin-bottom:8px">1. Copy the message &nbsp;2. Open WhatsApp &nbsp;3. Paste and send</p>' +
-      '<div style="background:rgba(255,255,255,.07);border-radius:8px;padding:10px 12px;font-size:.82rem;color:#eee;margin-bottom:12px;word-break:break-all;" id="alertMsgBox">' + msgText + '</div>' +
-      '<button onclick="navigator.clipboard.writeText(document.getElementById(\'alertMsgBox\').textContent).then(function(){this.textContent=\'✅ Copied!\';}.bind(this))" style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:#fff;padding:6px 14px;border-radius:8px;cursor:pointer;font-size:.82rem;margin-bottom:14px;">📋 Copy Message</button>';
+    linksDiv.innerHTML =
+      '<div style="background:rgba(37,211,102,.15);border:1px solid rgba(37,211,102,.4);border-radius:8px;padding:10px 12px;font-size:.82rem;color:#eee;margin-bottom:10px;word-break:break-all;">' +
+        '<div style="font-size:.7rem;color:rgba(255,255,255,.4);margin-bottom:4px;">✅ Message copied to clipboard:</div>' +
+        '<span id="alertMsgBox">' + msgText + '</span>' +
+      '</div>' +
+      '<div style="font-size:.78rem;color:rgba(255,255,255,.45);margin-bottom:10px;">Click a contact below → WhatsApp opens → press <kbd style="background:rgba(255,255,255,.1);padding:1px 5px;border-radius:3px;">Ctrl+V</kbd> to paste and send</div>';
+
     APP.contacts.forEach(function(c) {
       var phone = c.phone.replace(/[\s\-\(\)]/g, '');
       if (phone.startsWith('0')) phone = '91' + phone.slice(1);
       else if (!phone.startsWith('+') && phone.length === 10) phone = '91' + phone;
       phone = phone.replace('+', '');
-      var url = 'https://api.whatsapp.com/send?phone=' + phone + '&text=' + msg;
+      var isMobile = /Android|iPhone|iPad/i.test(navigator.userAgent);
+      var url = isMobile
+        ? 'https://wa.me/' + phone + '?text=' + msg
+        : 'https://web.whatsapp.com/send?phone=' + phone + '&text=' + msg;
+
+      var wrap = document.createElement('div');
+      wrap.style.cssText = 'margin-bottom:8px;';
+
       var btn = document.createElement('a');
       btn.href = url;
       btn.target = '_blank';
-      btn.style.cssText = 'display:block;background:rgba(37,211,102,.2);border:1px solid rgba(37,211,102,.4);color:#fff;padding:10px 16px;border-radius:10px;margin-bottom:8px;text-decoration:none;font-size:.9rem;';
-      btn.innerHTML = '💬 Open WhatsApp → <strong>' + c.name + '</strong> (' + c.phone + ')';
-      linksDiv.appendChild(btn);
+      btn.style.cssText = 'display:block;background:rgba(37,211,102,.2);border:1px solid rgba(37,211,102,.5);color:#fff;padding:11px 16px;border-radius:10px;text-decoration:none;font-size:.9rem;';
+      btn.innerHTML = '💬 <strong>' + c.name + '</strong> <span style="opacity:.6;font-size:.8rem;">(' + c.phone + ')</span> → open &amp; paste';
+      // re-copy on click in case clipboard was cleared
+      btn.addEventListener('click', function() {
+        if (navigator.clipboard) navigator.clipboard.writeText(msgText).catch(function() {});
+      });
+      wrap.appendChild(btn);
+      linksDiv.appendChild(wrap);
     });
-    // scroll to the card
+
     card.scrollIntoView({ behavior: 'smooth' });
   }
-  toast('📱 Alert Ready', 'Tap the buttons below to send', 'd');
+  toast('📋 Message Copied!', 'Open a contact → Ctrl+V to paste', 'd');
 }
 function alert112() {
   window.location.href = 'tel:112';
